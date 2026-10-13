@@ -1,7 +1,8 @@
 # Downloads OpenStreetMap data, builds the map chunks and publishes the site to GitHub Pages.
 # Run it from the Actions tab ("Build and deploy map" → Run workflow). The first run takes
-# 15–30 minutes because it downloads central London; later runs reuse the cached download
-# unless you change config.json.
+# about an hour because it downloads central London; later runs reuse the cached download
+# unless you change config.json or scripts/fetch.mjs. If a run stops part-way, the cells it
+# already downloaded are kept, so the next run carries on where it left off.
 name: Build and deploy map
 
 on:
@@ -21,19 +22,28 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Restore OpenStreetMap download
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: cache/raw
-          key: osm-${{ hashFiles('config.json') }}
+          key: osm-${{ hashFiles('config.json', 'scripts/fetch.mjs') }}-${{ github.run_id }}
+          restore-keys: osm-${{ hashFiles('config.json', 'scripts/fetch.mjs') }}-
       - name: Download OpenStreetMap data
         run: node scripts/fetch.mjs
+      - name: Save OpenStreetMap download
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: cache/raw
+          key: osm-${{ hashFiles('config.json', 'scripts/fetch.mjs') }}-${{ github.run_id }}
       - name: Build map chunks
         run: node scripts/build.mjs
       - uses: actions/configure-pages@v5

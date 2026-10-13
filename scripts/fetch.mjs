@@ -21,18 +21,27 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function query(s, w, n, e) {
   const b = `${s},${w},${n},${e}`;
-  return `[out:json][timeout:240];
+  return `[out:json][timeout:300];
 (
   way["building"](${b});
-  way["natural"="water"](${b});
-  relation["natural"="water"](${b});
-  way["waterway"="riverbank"](${b});
-  relation["waterway"="riverbank"](${b});
-  way["leisure"~"^(park|garden|common|pitch|playground|nature_reserve)$"](${b});
-  relation["leisure"~"^(park|garden|common)$"](${b});
-  way["landuse"~"^(grass|recreation_ground|cemetery|forest|meadow|village_green|allotments)$"](${b});
-  way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|pedestrian|living_street|service)$"](${b});
-  way["railway"~"^(rail|light_rail|subway)$"]["tunnel"!="yes"](${b});
+  relation["building"](${b});
+  way["building:part"](${b});
+  relation["building:part"](${b});
+  way["natural"~"^(water|coastline|wood|scrub|grassland|heath|beach|sand|mud|wetland)$"](${b});
+  relation["natural"~"^(water|wood|scrub|grassland|wetland|mud)$"](${b});
+  way["waterway"~"^(riverbank|dock|canal|basin)$"](${b});
+  relation["waterway"~"^(riverbank|dock)$"](${b});
+  way["landuse"](${b});
+  relation["landuse"](${b});
+  way["leisure"~"^(park|garden|common|pitch|playground|nature_reserve|golf_course|recreation_ground|marina|stadium|track)$"](${b});
+  relation["leisure"~"^(park|garden|common|nature_reserve|golf_course|recreation_ground)$"](${b});
+  way["amenity"~"^(parking|school|university|college|hospital|fountain)$"](${b});
+  way["man_made"~"^(pier|bridge|breakwater|jetty)$"](${b});
+  relation["man_made"="bridge"](${b});
+  way["place"="square"](${b});
+  way["highway"~"^(motorway|motorway_link|trunk|trunk_link|primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|unclassified|pedestrian|living_street|service)$"](${b});
+  way["railway"~"^(rail|light_rail|subway|narrow_gauge|platform)$"]["tunnel"!="yes"](${b});
+  node["natural"="tree"](${b});
 );
 out tags geom;`;
 }
