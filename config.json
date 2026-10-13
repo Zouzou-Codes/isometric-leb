@@ -1,0 +1,25 @@
+{
+  "name": "Isometric London",
+  "bbox": { "south": 51.465, "west": -0.225, "north": 51.560, "east": 0.030 },
+  "cellDegrees": { "lat": 0.025, "lng": 0.04 },
+  "chunkMeters": 500,
+  "start": { "lat": 51.5045, "lng": -0.1050, "zoom": 1, "rotation": 0 },
+  "landmarks": [
+    ["Big Ben", 51.5007, -0.1246],
+    ["London Eye", 51.5033, -0.1196],
+    ["Buckingham Palace", 51.5014, -0.1419],
+    ["Trafalgar Square", 51.5080, -0.1281],
+    ["British Museum", 51.5194, -0.1270],
+    ["King's Cross", 51.5320, -0.1240],
+    ["St Paul's Cathedral", 51.5138, -0.0984],
+    ["The Gherkin", 51.5145, -0.0803],
+    ["Barbican", 51.5202, -0.0937],
+    ["The Shard", 51.5045, -0.0865],
+    ["Tower of London", 51.5081, -0.0759],
+    ["Tower Bridge", 51.5055, -0.0754],
+    ["Canary Wharf", 51.5049, -0.0195],
+    ["Battersea Power Station", 51.4820, -0.1445],
+    ["Natural History Museum", 51.4967, -0.1764],
+    ["Hyde Park", 51.5073, -0.1657]
+  ]
+}

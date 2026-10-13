@@ -1,0 +1,14 @@
+{
+  "name": "isometric-london",
+  "version": "1.0.0",
+  "description": "A giant isometric pixel-art map of central London, drawn in code from OpenStreetMap data.",
+  "type": "module",
+  "scripts": {
+    "fetch": "node scripts/fetch.mjs",
+    "build": "node scripts/build.mjs",
+    "sample": "node scripts/make-sample.mjs && node scripts/build.mjs",
+    "serve": "python3 -m http.server 8000 -d public"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
