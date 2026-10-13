@@ -43,13 +43,14 @@ button,input{font:inherit;color:inherit}
 .tools button{width:44px;height:44px;border:2px solid var(--edge);background:var(--panel);font-family:var(--pixel);font-size:16px;cursor:pointer;box-shadow:3px 3px 0 rgba(0,0,0,.25);display:grid;place-items:center}
 .tools button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(0,0,0,.25)}
 .tools button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.marks{position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);display:flex;flex-wrap:wrap;gap:6px;max-width:min(640px,calc(100% - 100px))}
+.marks{position:fixed;left:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);display:flex;flex-wrap:wrap;gap:6px;max-width:min(560px,calc(100% - 100px))}
 .marks button{border:2px solid var(--edge);background:var(--panel);padding:4px 8px;font-size:11px;cursor:pointer;box-shadow:2px 2px 0 rgba(0,0,0,.25)}
 .marks button:hover{background:var(--accent);color:var(--accent-ink)}
-.marks button.whale{background:#2f4f72;color:#fff}
 .foot{position:fixed;left:0;right:0;bottom:0;padding:6px 16px calc(env(safe-area-inset-bottom,0px) + 6px);font-size:10px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(transparent,var(--sky) 60%)}
 .foot a{color:inherit}
 .status{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 20px);transform:translateX(-50%);padding:6px 12px;font-family:var(--pixel);font-size:12px}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 84px);transform:translateX(-50%);max-width:min(440px,calc(100% - 32px));padding:10px 14px;font-size:12px;line-height:1.5;z-index:9}
+.toast b{font-family:var(--pixel);font-weight:700;display:block;margin-bottom:2px}
 .err{position:fixed;inset:0;display:grid;place-items:center;padding:16px}
 .err div{max-width:460px;padding:18px 20px;line-height:1.55}
 .err code{background:rgba(0,0,0,.08);padding:1px 4px}
@@ -83,6 +84,7 @@ button,input{font:inherit;color:inherit}
 </div>
 
 <div class="status panel" id="status" hidden></div>
+<div class="toast panel" id="toast" hidden role="status"></div>
 
 <footer class="foot">
   <span>Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL) · built <span id="built"></span></span>
@@ -91,7 +93,6 @@ button,input{font:inherit;color:inherit}
 
 <div class="err" id="err" hidden><div class="panel"></div></div>
 
-<script src="landmarks.js"></script>
 <script src="iso.js"></script>
 </body>
 </html>
