@@ -95,7 +95,7 @@
     if (c.data || c.loading) return; c.loading = true;
     try {
       const d = await (await fetch(`data/chunks/${c.key}.json`)).json();
-      let m = 10; for (const b of d.b) if (b[0] / 2 > m) m = b[0] / 2; c.maxH = m + 8; c.data = d;
+      let m = 10; for (const b of d.b) { const top = b[0] / 2 + (b[6] || 0) / 2; if (top > m) m = top; } for (const s of d.s || []) m = Math.max(m, s[0] === 1 ? s[4] + s[3] / 2 : s[3] + 4); c.maxH = m + 8; d.s = d.s || []; c.data = d;
     } catch { c.data = { b: [], r: [], t: [] }; }
     c.loading = false; dirty = true;
   }
@@ -110,7 +110,7 @@
   }
 
   function makeBitmap(c, layer, L) {
-    const b = 2 ** -L; const [a, top, d, e] = layer === "o" ? chunkIsoBounds(c, 40) : chunkIsoBounds(c, 2);
+    const b = 2 ** -L; const [a, top, d, e] = layer === "o" ? chunkIsoBounds(c, 70) : chunkIsoBounds(c, 2);
     const w = Math.max(1, Math.ceil((d - a) * b)), h = Math.max(1, Math.ceil((e - top) * b));
     const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
     const g = cv.getContext("2d");
@@ -209,6 +209,12 @@
       for (const [x, y] of tail) px(x, y, dark); px(5, 5, dark); px(5, 6, dark);
       frames.push(cv);
     }
+    // the tail flukes, raised as it dives
+    const cv = document.createElement("canvas"); cv.width = 16; cv.height = 13; const g = cv.getContext("2d");
+    const c1 = nightMode ? "#1c2a35" : "#2c4657", c2 = nightMode ? "#3a5468" : "#79a0b6";
+    const rows = ["0110000000000110", "0111100000011110", "0011111001111100", "0001111111111000", "0000011111100000", "0000001111000000", "0000001111000000", "0000001111000000", "0000011111100000", "0000011111100000", "0000111111110000", "0000111111110000", "0001111111111000"];
+    rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === "1") { g.fillStyle = y < 3 && x % 5 === 1 ? c2 : c1; g.fillRect(x, y, 1, 1); } }));
+    frames.push(cv);
     return frames;
   }
   let WSPR = { day: whaleSprites(false), night: whaleSprites(true) };
@@ -223,23 +229,38 @@
     const [jx, jy] = iso(b[0], b[1]), [kx, ky] = iso(a[0], a[1]); const goingRight = (back ? kx - jx : jx - kx) >= 0;
     const w = Math.max(30, 26 * cam.zoom * 1.6), h = (w * 12) / 26; whale.sx = sx; whale.sy = sy; whale.w = w;
     if (sx < -w || sx > W + w || sy < -w || sy > H + w) return;
-    const cyc = T % 16; const pal = night ? WSPR.night : WSPR.day;
+    // a 26 s routine: swim and blow, dive tail-up, then a breach — the whole whale leaps clear and splashes back
+    const cyc = T % 26; const pal = night ? WSPR.night : WSPR.day; const foam = night ? "rgba(160,190,230,.4)" : "rgba(240,250,255,.85)";
+    const splash = (x, y, n, big) => { for (let k = 0; k < n; k++) spray.push({ x: x + (Math.random() - 0.5) * w * 0.5, y, vx: (Math.random() - 0.5) * (big ? 120 : 50), vy: -(big ? 90 : 50) - Math.random() * (big ? 110 : 50), life: 0.7 + Math.random() * 0.7, t: now, g: 160 }); };
     ctx.save(); ctx.imageSmoothingEnabled = false;
-    // ripples where it is (always), wake while it swims at the surface
+    // ripples where it is (always)
     const r = ((T % 1.6) / 1.6) * w * 0.7; ctx.strokeStyle = night ? "rgba(160,190,230,.35)" : "rgba(235,248,255,.7)"; ctx.lineWidth = Math.max(1, w / 40);
     ctx.beginPath(); ctx.ellipse(sx, sy + h * 0.25, r + w * 0.3, (r + w * 0.3) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    if (cyc < 11) {
-      const sink = cyc < 10 ? 0 : cyc - 10; // 0 → 1 while it dives
-      const frame = pal[Math.floor(T * 2.2) % 2]; const visibleH = Math.max(1, Math.round(12 * (1 - sink * 0.85)));
-      ctx.translate(Math.round(sx), Math.round(sy - h * 0.5 + h * sink * 0.6)); if (!goingRight) ctx.scale(-1, 1);
-      ctx.globalAlpha = 1 - sink * 0.5; ctx.drawImage(frame, 0, 0, 26, visibleH, -w / 2, 0, w, (h * visibleH) / 12);
-      ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      // the blow: a puff of spray from the blowhole
-      if ((cyc > 1.5 && cyc < 1.6) || (cyc > 6.5 && cyc < 6.6)) for (let k = 0; k < 14; k++) spray.push({ x: sx + (goingRight ? 0.18 : -0.18) * w, y: sy - h * 0.45, vx: (Math.random() - 0.5) * 30, vy: -60 - Math.random() * 50, life: 0.9 + Math.random() * 0.5, t: now });
+    if (cyc < 10) {
+      const frame = pal[Math.floor(T * 2.2) % 2]; const bob = Math.sin(T * 2.4) * h * 0.06;
+      ctx.translate(Math.round(sx), Math.round(sy - h * 0.5 + bob)); if (!goingRight) ctx.scale(-1, 1);
+      ctx.drawImage(frame, 0, 0, 26, 12, -w / 2, 0, w, h); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      // the blow: a tall puff of spray from the blowhole
+      if ((cyc > 1.5 && cyc < 1.56) || (cyc > 6.5 && cyc < 6.56)) for (let k = 0; k < 22; k++) spray.push({ x: sx + (goingRight ? 0.18 : -0.18) * w, y: sy - h * 0.45, vx: (Math.random() - 0.5) * 34, vy: -80 - Math.random() * 70, life: 0.9 + Math.random() * 0.6, t: now, g: 70 });
       // wake
-      ctx.strokeStyle = night ? "rgba(160,190,230,.3)" : "rgba(240,250,255,.75)"; ctx.beginPath(); const tx = sx + (goingRight ? -1 : 1) * w * 0.55; ctx.moveTo(tx, sy + h * 0.1); ctx.lineTo(tx + (goingRight ? -1 : 1) * w * 0.5, sy - h * 0.15); ctx.moveTo(tx, sy + h * 0.3); ctx.lineTo(tx + (goingRight ? -1 : 1) * w * 0.5, sy + h * 0.55); ctx.stroke();
-    }
-    for (let k = spray.length - 1; k >= 0; k--) { const p = spray[k]; const dt = (now - p.t) / 1000; if (dt > p.life) { spray.splice(k, 1); continue; } ctx.fillStyle = `rgba(255,255,255,${1 - dt / p.life})`; const ps = Math.max(2, w / 18); ctx.fillRect(Math.round(p.x + p.vx * dt), Math.round(p.y + p.vy * dt + 60 * dt * dt), ps, ps); }
+      ctx.strokeStyle = foam; ctx.lineWidth = Math.max(1, w / 40); ctx.beginPath(); const tx = sx + (goingRight ? -1 : 1) * w * 0.55; ctx.moveTo(tx, sy + h * 0.1); ctx.lineTo(tx + (goingRight ? -1 : 1) * w * 0.5, sy - h * 0.15); ctx.moveTo(tx, sy + h * 0.3); ctx.lineTo(tx + (goingRight ? -1 : 1) * w * 0.5, sy + h * 0.55); ctx.stroke();
+    } else if (cyc < 12) {
+      // dive: the back rolls under, then the flukes rise, hang and slip away
+      const u = (cyc - 10) / 2; const fl = pal[2], fw = w * 0.5, fh = (fw * 13) / 16;
+      const rise = u < 0.35 ? u / 0.35 : u < 0.75 ? 1 : 1 - (u - 0.75) / 0.25;
+      const vis = Math.max(0, Math.round(13 * rise));
+      if (vis > 0) ctx.drawImage(fl, 0, 0, 16, vis, Math.round(sx - fw / 2), Math.round(sy - fh * rise + h * 0.2), fw, (fh * vis) / 13);
+      if (u > 0.4 && u < 0.43) { for (let k = 0; k < 10; k++) spray.push({ x: sx + (Math.random() - 0.5) * fw, y: sy - fh * 0.9, vx: (Math.random() - 0.5) * 20, vy: 10 + Math.random() * 20, life: 0.8, t: now, g: 120 }); } // water streaming off the tail
+    } else if (cyc >= 18 && cyc < 20.2) {
+      // breach: up out of the water in an arc, twisting, and back down with a big splash
+      const u = (cyc - 18) / 2.2, lift = Math.sin(Math.PI * Math.min(1, u)) * w * 0.95, ang = (0.55 - u) * 1.5;
+      if (!whale.sp1) { whale.sp1 = 1; splash(sx, sy, 26, false); }
+      if (u > 0.93 && !whale.sp2) { whale.sp2 = 1; splash(sx + (goingRight ? 1 : -1) * w * 0.4, sy, 46, true); whale.ring = now; }
+      const frame = pal[0]; ctx.translate(Math.round(sx + (goingRight ? 1 : -1) * w * 0.35 * (u - 0.5)), Math.round(sy - lift)); if (!goingRight) ctx.scale(-1, 1); ctx.rotate(-ang);
+      ctx.drawImage(frame, -w / 2, -h / 2, w, h); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    } else if (cyc > 21) { whale.sp1 = whale.sp2 = 0; }
+    if (whale.ring && now - whale.ring < 1600) { const k = (now - whale.ring) / 1600; ctx.strokeStyle = night ? `rgba(160,190,230,${0.5 * (1 - k)})` : `rgba(255,255,255,${0.9 * (1 - k)})`; ctx.lineWidth = Math.max(1, w / 30); for (const m of [1, 0.6]) { const rr = w * (0.3 + k * 1.1) * m; ctx.beginPath(); ctx.ellipse(sx, sy, rr, rr * 0.45, 0, 0, 7); ctx.stroke(); } }
+    for (let k = spray.length - 1; k >= 0; k--) { const p = spray[k]; const dt = (now - p.t) / 1000; if (dt > p.life) { spray.splice(k, 1); continue; } ctx.fillStyle = `rgba(255,255,255,${1 - dt / p.life})`; const ps = Math.max(2, w / 18); ctx.fillRect(Math.round(p.x + p.vx * dt), Math.round(p.y + p.vy * dt + (p.g || 60) * dt * dt), ps, ps); }
     ctx.restore();
   }
 
@@ -250,19 +271,30 @@
     const pal = P(); const x0 = c.cx * C, z0 = c.cz * C;
     const items = [];
     for (const rec of c.data.b) {
-      const n = (rec.length - 3) / 2; const pts = new Array(n); let mx = 0, mz = 0;
-      for (let i = 0; i < n; i++) { const x = x0 + rec[3 + i * 2] / 2, z = z0 + rec[4 + i * 2] / 2; pts[i] = [x, z]; mx += x; mz += z; }
-      mx /= n; mz /= n; const [rx, rz] = rotXZ(mx, mz);
-      // nearest point to the viewer decides depth, so long buildings sort sensibly
+      // [height×2, material, roof, base×2, wall colour, roof colour, roof height×2, n, …outline, (n, …hole)…]
+      let o = 7; const rings = [];
+      while (o < rec.length) { const n = rec[o++]; const r = new Array(n); for (let i = 0; i < n; i++) r[i] = [x0 + rec[o + i * 2] / 2, z0 + rec[o + i * 2 + 1] / 2]; o += n * 2; rings.push(r); }
+      const pts = rings[0], n = pts.length; let mx = 0, mz = 0; for (const p of pts) { mx += p[0]; mz += p[1]; } mx /= n; mz /= n; const [rx, rz] = rotXZ(mx, mz);
+      // nearest point to the viewer decides depth, so long buildings sort sensibly; raised parts draw after what they sit on
       let dmax = -1e9; for (const p of pts) { const [a, bb] = rotXZ(p[0], p[1]); if (a + bb > dmax) dmax = a + bb; }
-      items.push({ k: (rx + rz) * 0.5 + dmax * 0.5, t: 0, h: rec[0] / 2, cls: rec[1], roof: rec[2], pts, mx, mz, id: (rec[3] * 7919 + rec[4] * 104729 + c.cx * 31 + c.cz * 17) | 0 });
+      const base = rec[3] / 2;
+      items.push({ k: (rx + rz) * 0.5 + dmax * 0.5 + base * 0.04, t: 0, h: rec[0] / 2, cls: rec[1], roof: rec[2], base, wall: rec[4], rcol: rec[5], roofH: rec[6] / 2, pts, holes: rings.slice(1), mx, mz, id: (rec[8] * 7919 + rec[9] * 104729 + c.cx * 31 + c.cz * 17) | 0 });
     }
+    for (const sp of c.data.s || []) { const x = x0 + sp[1] / 2, z = z0 + sp[2] / 2; const [rx, rz] = rotXZ(x, z); items.push({ k: rx + rz + 30, t: 2, sp, x, z }); }
     const tr = c.data.t;
     if (L <= 3) for (let i = 0; i < tr.length; i += 2) { const x = x0 + tr[i] / 2, z = z0 + tr[i + 1] / 2; const [rx, rz] = rotXZ(x, z); items.push({ k: rx + rz, t: 1, x, z, id: i }); }
+    // anything sitting on top of another piece (a drum on a nave, a lantern on a dome) draws after it
+    const raised = items.filter((it) => it.t === 0 && it.base > 0);
+    if (raised.length) for (const it of raised.sort((p, q) => p.base - q.base)) for (const o of items) {
+      if (o === it || o.t !== 0 || o.base >= it.base || o.h > it.base + 0.5 && o.base > 0 && o.h > it.h) continue;
+      if (Math.abs(o.mx - it.mx) > 80 || Math.abs(o.mz - it.mz) > 80) continue;
+      if (inPoly(it.mx, it.mz, o.pts) && o.k >= it.k) it.k = o.k + 0.01;
+    }
     items.sort((p, q) => p.k - q.k);
     const px = Math.max(1, b);
     for (const it of items) {
       if (it.t === 1) { drawTree(g, it, T, b, pal); continue; }
+      if (it.t === 2) { drawSpecial(g, it, T, b, pal); continue; }
       drawBuilding(g, it, T, b, px, pal, L);
     }
     if (L <= 1) crispen(g);
@@ -276,36 +308,51 @@
     if (b >= 0.5) { g.fillStyle = pal.tree[1]; g.beginPath(); g.arc(sx - r * 0.35, sy - 5.5 * b - r * 0.35, r * 0.45, 0, 7); g.fill(); }
   }
 
-  function drawBuilding(g, it, T, b, px, pal, L) {
-    const { pts, h } = it; const n = pts.length; const col = pal.mat[it.cls] || pal.mat[0];
-    // winding in rotated space
-    const R = pts.map((p) => rotXZ(p[0], p[1]));
-    let A = 0; for (let i = 0, j = n - 1; i < n; j = i++) A += R[j][0] * R[i][1] - R[i][0] * R[j][1];
-    const sgn = A > 0 ? 1 : -1;
-    const G = pts.map((p) => T(p[0], p[1], 0)), Rf = pts.map((p) => T(p[0], p[1], h));
-    const walls = [];
+  // Real colours from OSM (building:colour / roof:colour) become a little palette of their own.
+  const hex = (n) => "#" + n.toString(16).padStart(6, "0");
+  const dark = (n, k) => { const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; return "#" + [r, g, b].map((v) => Math.round(v * k).toString(16).padStart(2, "0")).join(""); };
+  const colCache = new Map();
+  function colours(it, pal) {
+    const base = pal.mat[it.cls] || pal.mat[0]; if (it.wall < 0 && it.rcol < 0) return base;
+    const key = it.cls + "|" + it.wall + "|" + it.rcol + "|" + night; let c = colCache.get(key); if (c) return c;
+    const w = it.wall >= 0 ? [hex(it.wall), dark(it.wall, 0.74)] : [base[0], base[1]], r = it.rcol >= 0 ? [hex(it.rcol), dark(it.rcol, 0.7)] : [base[2], base[3]];
+    c = night ? [shade(w[0], 0.32), shade(w[1], 0.22), shade(r[0], 0.28), shade(r[1], 0.2), base[4]] : [w[0], w[1], r[0], r[1], base[4]];
+    colCache.set(key, c); return c;
+  }
+  function wallsOf(pts, R, outward) {
+    const n = pts.length; let A = 0; for (let i = 0, j = n - 1; i < n; j = i++) A += R[j][0] * R[i][1] - R[i][0] * R[j][1];
+    const sgn = (A > 0 ? 1 : -1) * (outward ? 1 : -1); const out = [];
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n; const dx = R[j][0] - R[i][0], dz = R[j][1] - R[i][1];
-      const nx = dz * sgn, nz = -dx * sgn; // outward normal
+      const nx = dz * sgn, nz = -dx * sgn; // normal pointing out of the walls' material
       if (nx + nz <= 0) continue;
       const len = Math.hypot(dx, dz); if (len < 0.01) continue;
-      const t = (nx - nz) / (len * Math.SQRT2); // -1 left-facing … +1 right-facing
-      walls.push([i, j, t, len]);
+      out.push([i, j, (nx - nz) / (len * Math.SQRT2), len]); // -1 left-facing … +1 right-facing
     }
-    for (const [i, j, t] of walls) {
-      g.beginPath(); g.moveTo(G[i][0], G[i][1]); g.lineTo(G[j][0], G[j][1]); g.lineTo(Rf[j][0], Rf[j][1]); g.lineTo(Rf[i][0], Rf[i][1]); g.closePath();
-      g.fillStyle = t > 0.25 ? col[1] : t < -0.25 ? col[0] : mix(col[0], col[1], (t + 1) / 2); g.fill();
+    return out;
+  }
+  function drawBuilding(g, it, T, b, px, pal, L) {
+    const { pts, h, base = 0 } = it; const n = pts.length; const col = colours(it, pal);
+    const rings = [pts, ...(it.holes || [])];
+    const wallShade = (t) => (t > 0.25 ? col[1] : t < -0.25 ? col[0] : mix(col[0], col[1], (t + 1) / 2));
+    const all = [];
+    rings.forEach((ring, ri) => { const R = ring.map((p) => rotXZ(p[0], p[1])); for (const w of wallsOf(ring, R, ri === 0)) all.push([ring, ...w]); });
+    if (it.holes && it.holes.length) all.sort((p, q) => { const d = (r, i, j) => { const a = rotXZ((r[i][0] + r[j][0]) / 2, (r[i][1] + r[j][1]) / 2); return a[0] + a[1]; }; return d(p[0], p[1], p[2]) - d(q[0], q[1], q[2]); });
+    for (const [ring, i, j, t] of all) {
+      const a0 = T(ring[i][0], ring[i][1], base), a1 = T(ring[j][0], ring[j][1], base), b1 = T(ring[j][0], ring[j][1], h), b0 = T(ring[i][0], ring[i][1], h);
+      g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.lineTo(b1[0], b1[1]); g.lineTo(b0[0], b0[1]); g.closePath();
+      g.fillStyle = wallShade(t); g.fill();
     }
     // windows: one dashed row per floor
-    if (h >= 7 && b >= 0.24 && it.cls !== 7) {
+    if (h - base >= 6 && b >= 0.24 && it.cls !== 7) {
       const floor = it.cls === 4 || it.cls === 5 ? 3.6 : 3.3;
       g.lineWidth = Math.max(1, 1.3 * b); const dash = Math.max(1, 1.6 * b); g.setLineDash([dash, dash]);
-      for (const [i, j, , len] of walls) {
+      for (const [ring, i, j, , len] of all) {
         if (len < 3) continue;
-        const ax = pts[i][0] + (pts[j][0] - pts[i][0]) * 0.08, az = pts[i][1] + (pts[j][1] - pts[i][1]) * 0.08;
-        const bx = pts[i][0] + (pts[j][0] - pts[i][0]) * 0.92, bz = pts[i][1] + (pts[j][1] - pts[i][1]) * 0.92;
+        const ax = ring[i][0] + (ring[j][0] - ring[i][0]) * 0.08, az = ring[i][1] + (ring[j][1] - ring[i][1]) * 0.08;
+        const bx = ring[i][0] + (ring[j][0] - ring[i][0]) * 0.92, bz = ring[i][1] + (ring[j][1] - ring[i][1]) * 0.92;
         let row = 0;
-        for (let y = 2.2; y < h - 1.2; y += floor, row++) {
+        for (let y = base + 2.2; y < h - 1.2; y += floor, row++) {
           if (night) { const r = hash(it.id * 131 + row * 17 + i); if (r < 0.45) continue; g.strokeStyle = pal.lit[(r * 997 | 0) % pal.lit.length]; }
           else g.strokeStyle = col[4];
           const [p1x, p1y] = T(ax, az, y), [p2x, p2y] = T(bx, bz, y);
@@ -314,26 +361,71 @@
       }
       g.setLineDash([]);
     }
-    // roof
-    g.beginPath(); for (let i = 0; i < n; i++) i ? g.lineTo(Rf[i][0], Rf[i][1]) : g.moveTo(Rf[i][0], Rf[i][1]); g.closePath();
-    g.fillStyle = col[2]; g.fill(); g.strokeStyle = col[3]; g.lineWidth = px * (L === 0 ? 1 : 0.8); g.stroke();
-    if (it.roof === 1 && b >= 0.24 && n >= 4) {
-      // pitched: a ridge along the longest side, raised a little
+    // roof (courtyards are cut out of it)
+    const Rf = pts.map((p) => T(p[0], p[1], h));
+    g.beginPath(); for (const ring of rings) { ring.forEach((p, i) => { const [x, y] = T(p[0], p[1], h); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); }
+    g.fillStyle = col[2]; g.fill("evenodd"); g.strokeStyle = col[3]; g.lineWidth = px * (L === 0 ? 1 : 0.8); g.stroke();
+    if (it.roof === 3) {
+      // pyramid or spire: faces up to an apex, the ones turned towards the light drawn lighter
+      const rh = it.roofH > 0 ? it.roofH : Math.min(12, Math.sqrt(Math.abs(area2(pts))) * 0.5);
+      const ap = T(it.mx, it.mz, h + rh); const R = pts.map((p) => rotXZ(p[0], p[1]));
+      const faces = []; let A = 0; for (let i = 0, j = n - 1; i < n; j = i++) A += R[j][0] * R[i][1] - R[i][0] * R[j][1]; const sgn = A > 0 ? 1 : -1;
+      for (let i = 0; i < n; i++) { const j = (i + 1) % n; const dx = R[j][0] - R[i][0], dz = R[j][1] - R[i][1], len = Math.hypot(dx, dz) || 1; const nx = (dz * sgn) / len, nz = (-dx * sgn) / len; faces.push([i, j, nx + nz, (nx - nz) / Math.SQRT2]); }
+      faces.sort((p, q) => p[2] - q[2]);
+      for (const [i, j, front, side] of faces) { g.beginPath(); g.moveTo(Rf[i][0], Rf[i][1]); g.lineTo(Rf[j][0], Rf[j][1]); g.lineTo(ap[0], ap[1]); g.closePath(); g.fillStyle = front <= 0 ? col[3] : side > 0.2 ? mix(col[2], col[3], 0.55) : side < -0.2 ? mix(col[2], "#ffffff", 0.12) : col[2]; g.fill(); }
+    } else if (it.roof === 1 && b >= 0.24 && n >= 4) {
+      // pitched: a ridge along the longest side, raised to the roof's height
       let best = 0, bl = 0; for (let i = 0; i < n; i++) { const j = (i + 1) % n; const l = Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); if (l > bl) { bl = l; best = i; } }
       const j = (best + 1) % n; const ux = (pts[j][0] - pts[best][0]) / bl, uz = (pts[j][1] - pts[best][1]) / bl;
       let span = 0; for (const p of pts) { const d = Math.abs((p[0] - it.mx) * -uz + (p[1] - it.mz) * ux); if (d > span) span = d; }
-      const half = bl * 0.42, rh = Math.min(4, span * 0.55);
+      const half = bl * 0.42, rh = it.roofH > 0 ? it.roofH : Math.min(4, span * 0.55);
       const [ax, ay] = T(it.mx - ux * half, it.mz - uz * half, h + rh), [bx, by] = T(it.mx + ux * half, it.mz + uz * half, h + rh);
+      if (rh > 4.5) { // a big roof (a church, a hall): fill both slopes
+        for (const s of [-1, 1]) { const e1 = T(it.mx - ux * bl * 0.5 + -uz * span * s, it.mz - uz * bl * 0.5 + ux * span * s, h), e2 = T(it.mx + ux * bl * 0.5 + -uz * span * s, it.mz + uz * bl * 0.5 + ux * span * s, h);
+          g.beginPath(); g.moveTo(e1[0], e1[1]); g.lineTo(e2[0], e2[1]); g.lineTo(bx, by); g.lineTo(ax, ay); g.closePath(); g.fillStyle = s > 0 ? col[2] : mix(col[2], col[3], 0.5); g.fill(); }
+      }
       g.strokeStyle = col[3]; g.lineWidth = Math.max(1, 1.2 * b); g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
     } else if (it.roof === 2) {
-      let ar = 0; for (let i = 0, j = n - 1; i < n; j = i++) ar += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
-      const r = Math.sqrt(Math.abs(ar / 2) / Math.PI) * 0.75; const [cx, cy] = T(it.mx, it.mz, h);
-      g.fillStyle = col[2]; g.beginPath(); g.ellipse(cx, cy, r * Math.SQRT2 * b, r * Math.SQRT2 * 0.5 * b, 0, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.ellipse(cx, cy, r * Math.SQRT2 * b, r * 1.25 * b, 0, Math.PI, Math.PI * 2); g.fill();
-      g.fillStyle = mix(col[2], "#ffffff", 0.35); g.beginPath(); g.ellipse(cx - r * 0.4 * b, cy - r * 0.7 * b, r * 0.35 * b, r * 0.3 * b, 0, 0, 7); g.fill();
+      const r = Math.sqrt(Math.abs(area2(pts)) / Math.PI) * 0.95; const [cx, cy] = T(it.mx, it.mz, h); const dh = (it.roofH > 0 ? it.roofH : r) * HF * b;
+      const rx = r * Math.SQRT2 * b, ry = r * Math.SQRT2 * 0.5 * b;
+      const dome = new Path2D(); dome.ellipse(cx, cy, rx, ry, 0, 0, Math.PI); dome.ellipse(cx, cy, rx, dh, 0, Math.PI, Math.PI * 2); dome.closePath();
+      g.fillStyle = col[2]; g.fill(dome);
+      g.save(); g.clip(dome); g.fillStyle = mix(col[2], "#000000", 0.2); g.fillRect(cx + rx * 0.25, cy - dh - 2, rx, dh + ry + 4); g.fillStyle = mix(col[2], "#000000", 0.1); g.fillRect(cx - rx * 0.15, cy - dh - 2, rx * 0.4, dh + ry + 4);
+      g.fillStyle = mix(col[2], "#ffffff", 0.3); g.beginPath(); g.ellipse(cx - rx * 0.45, cy - dh * 0.55, rx * 0.2, Math.max(1, dh * 0.25), -0.5, 0, 7); g.fill();
+      g.strokeStyle = mix(col[2], "#000000", 0.25); g.lineWidth = Math.max(1, 0.6 * b); for (const f of [-0.6, -0.2, 0.2, 0.6]) { g.beginPath(); g.ellipse(cx, cy, Math.abs(rx * f), dh, 0, f < 0 ? Math.PI * 1.5 : Math.PI, f < 0 ? Math.PI * 2 : Math.PI * 1.5, f < 0); g.stroke(); } g.restore();
     }
     if (night && h > 60) { // aircraft warning light on tall towers
-      let top = Rf[0]; for (const p of Rf) if (p[1] < top[1]) top = p; g.fillStyle = "#ff3b3b"; g.fillRect(Math.round(top[0]), Math.round(top[1] - 2 * b), Math.max(1, 1.5 * b), Math.max(1, 1.5 * b));
+      let top = Rf[0]; for (const p of Rf) if (p[1] < top[1]) top = p; g.fillStyle = "#ff3b3b"; g.fillRect(Math.round(top[0]), Math.round(top[1] - 2 * b - (it.roof === 3 ? (it.roofH || 0) * b : 0)), Math.max(1, 1.5 * b), Math.max(1, 1.5 * b));
+    }
+  }
+  function inPoly(x, z, r) { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, zi] = r[i], [xj, zj] = r[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; }
+  function area2(p) { let a = 0; for (let i = 0, j = p.length - 1; i < p.length; j = i++) a += p[j][0] * p[i][1] - p[i][0] * p[j][1]; return a / 2; }
+  // The London Eye and the columns (Nelson's, the Monument)
+  function drawSpecial(g, it, T, b, pal) {
+    const sp = it.sp; const lw = (w) => Math.max(1, w * b);
+    if (sp[0] === 1) {
+      const [, , , D, hub, bearing] = sp; const R = D / 2, br = (bearing * Math.PI) / 180, ux = Math.sin(br), uz = -Math.cos(br), ax = -uz, az = ux; // rim direction and axle
+      const P = (a, rr = R) => T(it.x + ux * Math.sin(a) * rr, it.z + uz * Math.sin(a) * rr, hub + Math.cos(a) * rr);
+      const steel = night ? "#7f8fb0" : "#e9eef2", dk = night ? "#4a5670" : "#9aa5ae";
+      // the A-frame leg leaning back from the hub
+      g.strokeStyle = dk; g.lineWidth = lw(1.6);
+      for (const s of [-1, 1]) { const f = T(it.x + ax * 32 + ux * 14 * s, it.z + az * 32 + uz * 14 * s, 0), hb = T(it.x, it.z, hub); g.beginPath(); g.moveTo(f[0], f[1]); g.lineTo(hb[0], hb[1]); g.stroke(); }
+      // spokes
+      g.strokeStyle = night ? "rgba(127,143,176,.55)" : "rgba(160,170,180,.75)"; g.lineWidth = lw(0.5); const hb = T(it.x, it.z, hub);
+      for (let k = 0; k < 32; k++) { const p = P((k / 32) * 6.2832); g.beginPath(); g.moveTo(hb[0], hb[1]); g.lineTo(p[0], p[1]); g.stroke(); }
+      // rim
+      g.strokeStyle = steel; g.lineWidth = lw(1.4); g.beginPath(); for (let k = 0; k <= 96; k++) { const p = P((k / 96) * 6.2832); k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); } g.stroke();
+      g.strokeStyle = dk; g.lineWidth = lw(0.7); g.beginPath(); for (let k = 0; k <= 96; k++) { const p = P((k / 96) * 6.2832, R - 3); k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); } g.stroke();
+      // 32 glass capsules
+      for (let k = 0; k < 32; k++) { const p = P((k / 32) * 6.2832, R + 2.2); g.fillStyle = night ? (k % 3 ? "#ffd27a" : "#cfe8ff") : "#bfe2f2"; const s = Math.max(1.5, 3.2 * b); g.fillRect(Math.round(p[0] - s / 2), Math.round(p[1] - s / 2), Math.ceil(s), Math.ceil(s * 0.8)); }
+      g.fillStyle = dk; g.beginPath(); g.arc(hb[0], hb[1], Math.max(1.5, 3 * b), 0, 7); g.fill();
+    } else if (sp[0] === 2) {
+      const [, , , hh, r] = sp; const a = T(it.x, it.z, 0), t = T(it.x, it.z, hh), m = pal.mat[2];
+      const w = Math.max(1.5, r * Math.SQRT2 * b);
+      g.fillStyle = m[1]; g.fillRect(Math.round(a[0] - w), Math.round(t[1]), Math.ceil(w), Math.ceil(a[1] - t[1]));
+      g.fillStyle = m[0]; g.fillRect(Math.round(a[0]), Math.round(t[1]), Math.ceil(w), Math.ceil(a[1] - t[1]));
+      g.fillStyle = m[2]; g.fillRect(Math.round(a[0] - w * 1.6), Math.round(a[1] - 5 * b), Math.ceil(w * 3.2), Math.ceil(5 * b)); // plinth
+      g.fillStyle = sp[3] > 55 ? "#d9a441" : m[3]; g.beginPath(); g.arc(t[0], t[1] - 2 * b, Math.max(1, r * 0.7 * b), 0, 7); g.fill(); // the Monument's gilded urn, Nelson on top
     }
   }
   function mix(a, bcol, t) {
@@ -368,7 +460,7 @@
     const vx0 = cx - W / 2 / cam.zoom, vx1 = cx + W / 2 / cam.zoom, vy0 = cy - H / 2 / cam.zoom, vy1 = cy + H / 2 / cam.zoom;
     const L = Math.max(0, Math.min(6, Math.floor(Math.log2(1 / (cam.zoom * DPR)) + 0.0001)));
     const vis = [];
-    for (const c of chunks) { const [a, b, d, e] = chunkIsoBounds(c, 40); if (d < vx0 || a > vx1 || e < vy0 || b > vy1) continue; vis.push(c); }
+    for (const c of chunks) { const [a, b, d, e] = chunkIsoBounds(c, 70); if (d < vx0 || a > vx1 || e < vy0 || b > vy1) continue; vis.push(c); }
     vis.sort((p, q) => chunkDepth(p) - chunkDepth(q));
     // load nearest chunks first
     const byDist = vis.slice().sort((p, q) => Math.hypot((p.cx + 0.5) * C - cam.x, (p.cz + 0.5) * C - cam.z) - Math.hypot((q.cx + 0.5) * C - cam.x, (q.cz + 0.5) * C - cam.z));

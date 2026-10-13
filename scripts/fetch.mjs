@@ -107,6 +107,20 @@ if (failed.length) {
   console.error("Everything else is saved. Run again later and only the missing cells will be downloaded.");
   process.exit(1);
 }
+// 3D detail: building parts (domes, towers, spires, stepped tops) and buildings mapped as
+// multipolygons (courtyard blocks like Somerset House or the British Museum). Kept in their own
+// files, so an earlier download is reused and only this extra detail is fetched.
+const partsQuery = (s, w, n, e) => { const b = `${s},${w},${n},${e}`; return `[out:json][timeout:240];\n(\n  way["building:part"](${b});\n  relation["building:part"](${b});\n  relation["building"](${b});\n);\nout tags geom;`; };
+const partFailed = [];
+for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+  const file = new URL(`parts_${r}_${c}.json`, OUT);
+  try { await access(file); continue; } catch {}
+  const s = south + r * dLat, w = west + c * dLng, n = Math.min(north, s + dLat), e = Math.min(east, w + dLng);
+  try { const text = await fetchCell(partsQuery(s, w, n, e), `parts ${r}_${c}`); await writeFile(file, text); console.log(`  parts ${r}_${c} ✓ ${(text.length / 1e6).toFixed(1)} MB`); }
+  catch (err) { console.warn(`  parts ${r}_${c} ✗ ${err.message}`); partFailed.push(`${r}_${c}`); }
+  await sleep(3000);
+}
+if (partFailed.length) console.warn(`3D detail is missing for ${partFailed.length} area(s); the map still builds, and a re-run fetches them.`);
 // River centrelines for the whole area in one small request. Some stretches of the Thames
 // have no water area in OpenStreetMap, so the build widens the centreline into a river.
 const riversFile = new URL("rivers.json", OUT);
