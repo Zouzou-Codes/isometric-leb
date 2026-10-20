@@ -1,4 +1,4 @@
-// Isometric London — a pixel-art city renderer drawn entirely with the Canvas 2D API.
+// Isometric Beirut — a pixel-art city renderer drawn entirely with the Canvas 2D API.
 //
 // How it works
 //  1. The city is split into 500 m chunks (built by scripts/build.mjs).
@@ -21,10 +21,10 @@
   // per material: [lit wall, shaded wall, roof, roof edge, window]
   const DAY = {
     mat: [
-      ["#b95b40", "#8b3f2d", "#6d707a", "#4b4d56", "#5b3a33"], // red brick
-      ["#cda86c", "#9e7d4b", "#6d707a", "#4b4d56", "#6a5537"], // London stock brick
-      ["#e8dec5", "#b9ad92", "#d2c9b2", "#8f866f", "#8a8577"], // Portland stone
-      ["#f4f0e5", "#c9c3b3", "#9aa0a7", "#6a7076", "#8d949a"], // stucco
+      ["#d9a070", "#a87550", "#cfc8ba", "#8e877a", "#5b4a3a"], // ochre plaster (Beirut)
+      ["#d8c08e", "#a8925f", "#cfc8ba", "#8e877a", "#6a5a40"], // sandstone (ramleh)
+      ["#e8dec5", "#b9ad92", "#d2c9b2", "#8f866f", "#8a8577"], // limestone
+      ["#f4f0e5", "#c9c3b3", "#cfc8ba", "#8e877a", "#8d949a"], // white/cream plaster, flat concrete roof
       ["#86b8d4", "#4f7f9e", "#bccad2", "#5a6d78", "#c9e6f5"], // glass
       ["#679297", "#3c5f66", "#9fb2b4", "#44575a", "#a5d0d2"], // dark glass
       ["#bab6ad", "#8b877e", "#a39f95", "#6e6a62", "#6f6b63"], // concrete
@@ -525,7 +525,7 @@
     else if (k === "/") { e.preventDefault(); $("#q").focus(); }
   });
 
-  let toastT; function whaleToast() { const el = $("#toast"); if (!el) return; el.hidden = false; el.innerHTML = "<b>You found the Thames whale.</b> In January 2006 a real northern bottlenose whale swam up the river into central London, past the Houses of Parliament."; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), 7000); }
+  let toastT; function whaleToast() { const el = $("#toast"); if (!el) return; el.hidden = false; el.innerHTML = "<b>You found the whale.</b>"; clearTimeout(toastT); toastT = setTimeout(() => (el.hidden = true), 7000); }
 
   /* ---------- fly-to ---------- */
   let fly = null;
