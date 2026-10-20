@@ -1,58 +1,78 @@
-// Hand-checked facts about London's landmarks, used where OpenStreetMap is missing detail.
+// Published heights for Beirut's tall buildings, used to correct OpenStreetMap.
 //
-// OpenStreetMap is always preferred: an override only applies when the building found at that
-// point has no height of its own in OSM, and the extra pieces (domes, chimneys, towers) are only
-// added when OSM has no 3D "building:part" shapes for that building already.
+// Sources: the Council on Vertical Urbanism database (skyscrapercenter.com) where it has a confirmed
+// height, otherwise Wikipedia's "List of tallest buildings in Lebanon" (heights and coordinates).
 //
-// h: height to the main roof (m) · roof: flat | gabled | dome | pyramid · roofH: height of the roof itself
-// mat: stone | glass | glass2 | concrete | redbrick | stockbrick | stucco | church
-// add: extra pieces, each placed relative to the building:
-//   { circle: [lat, lng, radius], base, h, roof, roofH, mat }        a round tower, drum or dome
-//   { corners: inset (0–0.5), radius, h, mat }                        four chimneys at the corners
-//   { towers: [[lat, lng], …], size, h, roof, roofH, mat }            square towers
-//   { slab: [[lat, lng], [lat, lng]], width, base, h, mat }           a walkway between two points
+// Unlike the London original, these heights always win over OpenStreetMap's own tags, because
+// most Beirut buildings in OSM only have an estimated floor count or nothing at all.
+//
+// Each entry finds its building either by a point (at: [lat, lng]) or by its OSM name (match: regex).
+// A point that lands on a street falls back to the nearest large building within 40 m.
+// The build log lists every entry and whether it found a building.
+//
+// h: height to the roof (m) · mat: stone | glass | glass2 | concrete | redbrick | stockbrick | stucco
+// (in the Beirut palette, redbrick = ochre plaster, stockbrick = sandstone, stucco = white plaster)
 
 export const OVERRIDES = [
-  // the City cluster
-  { name: "The Shard", at: [51.50451, -0.08649], h: 24, roof: "pyramid", roofH: 286, mat: "glass" },
-  { name: "30 St Mary Axe (the Gherkin)", at: [51.51448, -0.08033], h: 150, roof: "dome", roofH: 30, mat: "glass2" },
-  { name: "20 Fenchurch Street (Walkie-Talkie)", at: [51.51127, -0.08341], h: 160, mat: "glass" },
-  { name: "The Leadenhall Building (Cheesegrater)", at: [51.5137, -0.08218], h: 225, mat: "glass" },
-  { name: "22 Bishopsgate", at: [51.51463, -0.0828], h: 278, mat: "glass" },
-  { name: "Heron Tower", at: [51.51623, -0.08068], h: 202, mat: "glass2" },
-  { name: "Tower 42", at: [51.51518, -0.08389], h: 183, mat: "glass2" },
-  { name: "Lloyd's building", at: [51.5129, -0.08218], h: 95, mat: "concrete" },
-  { name: "Broadgate Tower", at: [51.52083, -0.07917], h: 164, mat: "glass" },
-  { name: "Centre Point", at: [51.516, -0.1302], h: 117, mat: "concrete" },
-  { name: "One Blackfriars", at: [51.5078, -0.1037], h: 170, mat: "glass" },
-  { name: "St George Wharf Tower", at: [51.486, -0.1256], h: 181, mat: "glass" },
-  { name: "BT Tower", at: [51.52152, -0.13891], h: 177, mat: "glass2" },
-  // Canary Wharf
-  { name: "One Canada Square", at: [51.50493, -0.01953], h: 222, roof: "pyramid", roofH: 13, mat: "stone" },
-  { name: "8 Canada Square", at: [51.50513, -0.01725], h: 200, mat: "glass" },
-  { name: "25 Canada Square", at: [51.50444, -0.01688], h: 200, mat: "glass" },
-  // Westminster
-  { name: "Elizabeth Tower (Big Ben)", at: [51.50073, -0.12463], h: 72, roof: "pyramid", roofH: 24, mat: "stone" },
-  { name: "Victoria Tower", at: [51.49844, -0.12503], h: 98, mat: "stone" },
-  { name: "Westminster Abbey", at: [51.49929, -0.12731], h: 31, roof: "gabled", roofH: 8, mat: "church" },
-  { name: "Buckingham Palace", at: [51.5014, -0.14189], h: 24, mat: "stone" },
-  // the City and the South Bank
-  { name: "St Paul's Cathedral", at: [51.51381, -0.09838], h: 30, roof: "gabled", roofH: 6, mat: "stone",
-    add: [{ circle: [51.51381, -0.09838, 17], base: 0, h: 72, mat: "stone" }, { circle: [51.51381, -0.09838, 15], base: 72, h: 80, roof: "dome", roofH: 20, mat: "church" }, { circle: [51.51381, -0.09838, 3], base: 96, h: 105, roof: "pyramid", roofH: 6, mat: "stone" }] },
-  { name: "Tate Modern", at: [51.50758, -0.09936], h: 35, mat: "redbrick", add: [{ circle: [51.50775, -0.09936, 6], base: 0, h: 99, mat: "redbrick" }] },
-  { name: "Tower of London (White Tower)", at: [51.50812, -0.07597], h: 27, mat: "stone",
-    add: [{ corners: 0.08, radius: 3, h: 34, roof: "dome", roofH: 3, mat: "stone" }] },
-  { name: "Battersea Power Station", at: [51.48183, -0.14476], h: 50, mat: "redbrick", add: [{ corners: 0.1, radius: 4.5, h: 103, mat: "stucco" }] },
-  { name: "Natural History Museum", at: [51.49672, -0.17639], h: 30, roof: "gabled", roofH: 6, mat: "stockbrick" },
-  { name: "British Museum", at: [51.51939, -0.12698], h: 25, mat: "stone" }
+  { name: "Sama Beirut", at: [33.8870833, 35.5102222], h: 195.2, mat: "glass" },
+  { name: "Sky Gate", at: [33.8877778, 35.5175556], h: 180.4 },
+  { name: "FortyFour", at: [33.880528, 35.542250], h: 172 },
+  { name: "Les Domes de Sursock", at: [33.8929167, 35.5177778], h: 163.6 },
+  { name: "2030", at: [33.8896389, 35.5141944], h: 155 },
+  { name: "Platinum Tower", at: [33.9006944, 35.4964444], h: 153, mat: "glass" },
+  { name: "Abdel Wahab 618", at: [33.8891667, 35.5158333], h: 152 },
+  { name: "Marina Tower", at: [33.9017222, 35.4987500], h: 149, mat: "glass" },
+  { name: "L'Elite de Sursock", match: "elite.*sursock", h: 142 },
+  { name: "Burj el Murr", at: [33.8952778, 35.4965000], h: 140, mat: "concrete" },
+  { name: "Place Pasteur", at: [33.8956944, 35.5138889], h: 140 },
+  { name: "La Citadelle", at: [33.9020000, 35.4922778], h: 140 },
+  { name: "Quasar Saifi 450", match: "quasar", h: 138.4 },
+  { name: "Credit Libanais Tower", at: [33.8801667, 35.5245000], h: 133 },
+  { name: "Hilton Habtoor Grand", at: [33.8693889, 35.5372222], h: 130 },
+  { name: "3 Beirut", at: [33.8989722, 35.4976944], h: 126 },
+  { name: "Bay Tower", at: [33.9006944, 35.4977778], h: 125 },
+  { name: "Achrafieh 4748", at: [33.8784167, 35.5286944], h: 120 },
+  { name: "Four Seasons Hotel", at: [33.9018889, 35.4992500], h: 120 },
+  { name: "Beirut Terraces", at: [33.8997222, 35.4962500], h: 119.5 },
+  { name: "Holiday Inn", at: [33.8996111, 35.4949444], h: 118, mat: "concrete" },
+  { name: "Hosn 440", at: [33.8986667, 35.4935556], h: 113 },
+  { name: "Beirut Tower", at: [33.9006667, 35.4973611], h: 112.2 },
+  { name: "Burj Kronfol", at: [33.8786389, 35.5082778], h: 110 },
+  { name: "Rizk Tower", at: [33.8871944, 35.5145556], h: 106, mat: "concrete" },
+  { name: "Damac Tower", at: [33.8989722, 35.4959722], h: 102 },
+  { name: "The Heights", at: [33.8885000, 35.4801111], h: 102 },
+  { name: "Karam Tower", at: [33.8943611, 35.5254167], h: 102 },
+  { name: "Ashrafieh Tower", at: [33.8886944, 35.5122222], h: 100 },
+  { name: "Atomium 5242", at: [33.8877778, 35.5180556], h: 100 },
+  { name: "Al Sahab", at: [33.8933889, 35.4744722], h: 98 },
+  { name: "Carlton Residence", at: [33.8858333, 35.4763889], h: 96 },
+  { name: "Horizon Tower", at: [33.9015278, 35.4853333], h: 95 },
+  { name: "Al Mada Tower", at: [33.8907222, 35.4722778], h: 94 },
+  { name: "Raouche View 1090", at: [33.8894722, 35.4725000], h: 94 },
+  { name: "Tilal Tower", at: [33.8876667, 35.5171667], h: 91 },
+  { name: "Universal Tower", at: [33.8886389, 35.4758611], h: 90 },
+  { name: "Verdun Gardens", at: [33.8913889, 35.4838889], h: 90 },
+  { name: "Safir Heliopolitan Hotel", at: [33.8915556, 35.4727500], h: 90 },
+  { name: "Phoenicia Hotel", at: [33.9006944, 35.4945000], h: 90, mat: "stucco" },
+  { name: "Manara 587", at: [33.8970833, 35.4719722], h: 88 },
+  { name: "Titanium Tower", at: [33.8866667, 35.4786389], h: 87 },
+  { name: "Sky Garden", at: [33.8872778, 35.4754444], h: 87 },
+  { name: "Majestic Tower", at: [33.8983333, 35.4904722], h: 87 },
+  { name: "Mirage Plaza", at: [33.8926944, 35.4880833], h: 87 },
+  { name: "St George Tower 1 (Alpha)", at: [33.8843333, 35.5205833], h: 87 },
+  { name: "St George Tower 2 (Delta)", at: [33.8848333, 35.5211667], h: 87 },
+  { name: "St George Tower 3 (Omega)", at: [33.8844444, 35.5214167], h: 87 },
+  { name: "Al Aidi Tower", at: [33.8933611, 35.5116667], h: 85 },
+  { name: "Sursock Tower", at: [33.8926111, 35.5114444], h: 85 },
+  { name: "Corniche Garden", at: [33.9017222, 35.4845278], h: 83 },
+  { name: "Astoria Tower", at: [33.8947778, 35.4707222], h: 83 },
+  { name: "Dreams Tower", at: [33.9012778, 35.4868056], h: 83 },
+  { name: "Hilton Metropolitan Palace", at: [33.8707778, 35.5360000], h: 83 },
+  { name: "Hugo 43", at: [33.8889167, 35.5077778], h: 81 },
+  { name: "Ain Mreisseh Tower", at: [33.8986667, 35.4917222], h: 80 },
+  // Hôtel Saint-Georges: four storeys (1932, two floors added 1946), height estimated from that
+  { name: "Hotel Saint-Georges", match: "^(h[oô]tel )?(st\\.?|saint)[ -]georges?( h[oô]tel)?$", h: 18, mat: "redbrick" }
 ];
 
-// Structures that aren't buildings, drawn specially.
-export const SPECIALS = [
-  // London Eye: 120 m wheel, 135 m to the top, its rim running along the river bank
-  { type: "wheel", name: "London Eye", at: [51.50330, -0.11955], diameter: 120, hub: 75, bearing: 20 },
-  { type: "column", name: "Nelson's Column", at: [51.50773, -0.12803], h: 52, r: 2.6 },
-  { type: "column", name: "The Monument", at: [51.51013, -0.08594], h: 62, r: 3.2 },
-  // Tower Bridge: two stone towers and the high-level walkways between them
-  { type: "towerbridge", name: "Tower Bridge", north: [51.50578, -0.07538], south: [51.50522, -0.07537] }
-];
+// No special structures (wheels, columns, bridges) for Beirut yet.
+export const SPECIALS = [];

@@ -129,4 +129,12 @@ try { await access(riversFile); } catch {
   const text = await fetchCell(`[out:json][timeout:180];\n(\n  way["waterway"="river"](${b});\n  way["water"="river"](${b});\n  relation["water"="river"](${b});\n);\nout tags geom;`, "rivers");
   await writeFile(riversFile, text); console.log("  rivers ✓");
 }
+// The coastline for the whole area in one small request (Beirut addition). OpenStreetMap stores
+// the sea as coastline lines, not water areas, so the build turns these lines into the sea.
+const coastFile = new URL("coast.json", OUT);
+try { await access(coastFile); } catch {
+  const b = `${south},${west},${north},${east}`;
+  const text = await fetchCell(`[out:json][timeout:180];\n(\n  way["natural"="coastline"](${b});\n);\nout tags geom;`, "coast");
+  await writeFile(coastFile, text); console.log("  coast ✓");
+}
 console.log("All cells downloaded. Next: node scripts/build.mjs");

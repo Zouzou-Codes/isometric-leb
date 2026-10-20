@@ -78,7 +78,8 @@ function parseLen(v) {
   const ft = s.match(/^([\d.]+)\s*(ft|')/); if (ft) return parseFloat(ft[1]) * 0.3048;
   const n = parseFloat(s.replace(",", ".")); return Number.isFinite(n) && n > 0 && n < 400 ? n : null;
 }
-const DEFAULT_H = { house: 8, detached: 8, semidetached_house: 8, terrace: 10, residential: 12, apartments: 16, flats: 16, commercial: 18, office: 22, retail: 8, supermarket: 7, church: 16, cathedral: 30, chapel: 9, mosque: 12, synagogue: 12, temple: 10, civic: 16, government: 18, public: 14, museum: 18, university: 18, college: 15, school: 12, hospital: 20, hotel: 22, train_station: 16, transportation: 10, industrial: 9, warehouse: 9, garage: 3, garages: 3, shed: 3, hut: 3, roof: 4, parking: 12, service: 5, kiosk: 3, stadium: 25, theatre: 16, construction: 10 };
+// Beirut: most blocks are 6–10 floor apartment buildings, so residential defaults are taller than London's.
+const DEFAULT_H = { house: 9, detached: 9, semidetached_house: 9, terrace: 10, residential: 22, apartments: 25, flats: 25, commercial: 20, office: 30, retail: 8, supermarket: 7, church: 16, cathedral: 30, chapel: 9, mosque: 12, synagogue: 12, temple: 10, civic: 16, government: 18, public: 14, museum: 18, university: 18, college: 15, school: 12, hospital: 20, hotel: 22, train_station: 16, transportation: 10, industrial: 9, warehouse: 9, garage: 3, garages: 3, shed: 3, hut: 3, roof: 4, parking: 12, service: 5, kiosk: 3, stadium: 25, theatre: 16, construction: 10 };
 // material classes the renderer understands
 const M = { REDBRICK: 0, STOCKBRICK: 1, STONE: 2, STUCCO: 3, GLASS: 4, GLASS2: 5, CONCRETE: 6, SHED: 7, CHURCH: 8 };
 // Height to the top of the walls, from OSM if it says, otherwise from the floor count,
@@ -91,7 +92,7 @@ function heightOf(t, id, a = 200) {
   if (!h) { const lv = parseFloat(t["building:levels"]); if (lv > 0 && lv < 120) h = lv * 3.3 + 1; }
   if (!h) {
     let d = DEFAULT_H[t.building] ?? DEFAULT_H[t["building:part"]];
-    if (d == null) d = a < 60 ? 6 : a < 150 ? 9 : a < 400 ? 12 : a < 1500 ? 16 : 21; // untyped: bigger footprints tend to be taller
+    if (d == null) d = a < 60 ? 6 : a < 150 ? 12 : a < 400 ? 20 : a < 1500 ? 25 : 22; // untyped: bigger footprints tend to be taller
     h = d * (0.88 + hash(id) * 0.28);
   }
   return Math.round(Math.min(330, h) * 2) / 2;
@@ -115,10 +116,11 @@ function materialOf(t, h, id) {
   if (h >= 60) return pick(id, [M.GLASS, M.GLASS, M.GLASS2]);
   if (["civic", "government", "public", "museum", "university", "college", "hospital", "theatre"].includes(b) || t.tourism === "museum") return h > 30 ? pick(id, [M.STONE, M.CONCRETE]) : M.STONE;
   if (["commercial", "office", "hotel"].includes(b)) return h > 40 ? pick(id, [M.GLASS, M.GLASS2, M.STONE]) : pick(id, [M.STONE, M.STOCKBRICK, M.STUCCO, M.GLASS]);
-  if (["house", "terrace", "semidetached_house", "detached"].includes(b)) return pick(id, [M.REDBRICK, M.STOCKBRICK, M.STOCKBRICK, M.STUCCO]);
-  if (["apartments", "residential", "flats"].includes(b)) return h > 35 ? pick(id, [M.CONCRETE, M.GLASS, M.STOCKBRICK]) : pick(id, [M.REDBRICK, M.STOCKBRICK, M.STUCCO, M.STOCKBRICK]);
-  if (h > 28) return pick(id, [M.STONE, M.CONCRETE, M.GLASS2]);
-  return pick(id, [M.REDBRICK, M.STOCKBRICK, M.STOCKBRICK, M.STUCCO, M.STONE]);
+  // Beirut palette: REDBRICK = ochre plaster, STOCKBRICK = sandstone, STUCCO = white/cream plaster
+  if (["house", "terrace", "semidetached_house", "detached"].includes(b)) return pick(id, [M.REDBRICK, M.STOCKBRICK, M.STUCCO, M.STUCCO]);
+  if (["apartments", "residential", "flats"].includes(b)) return h > 35 ? pick(id, [M.CONCRETE, M.STUCCO, M.GLASS]) : pick(id, [M.CONCRETE, M.STUCCO, M.STUCCO, M.STOCKBRICK, M.CONCRETE, M.REDBRICK]);
+  if (h > 28) return pick(id, [M.CONCRETE, M.STUCCO, M.STONE, M.GLASS2]);
+  return pick(id, [M.CONCRETE, M.STUCCO, M.STUCCO, M.STOCKBRICK, M.STONE, M.REDBRICK]);
 }
 // roof style: 0 flat, 1 pitched (drawn with a ridge), 2 dome, 3 pyramid / spire
 function roofOf(t, h, cls) {
@@ -127,7 +129,8 @@ function roofOf(t, h, cls) {
   if (/pyramid|spire|cone|conical/.test(s)) return 3;
   if (/gabled|hipped|pitched|mansard|gambrel/.test(s)) return 1;
   if (s === "flat") return 0;
-  if ((cls === M.REDBRICK || cls === M.STOCKBRICK || cls === M.STUCCO) && h < 16) return 1;
+  // Beirut: flat roofs, except low traditional houses, which get red-tile pitched roofs
+  if (["house", "terrace", "semidetached_house", "detached"].includes(t.building) && h < 14) return 1;
   if (cls === M.CHURCH) return 1;
   return 0;
 }
@@ -146,7 +149,7 @@ function greenClass(t) {
 const seen = new Set();
 const chunks = new Map();
 const chunkOf = (cx, cz) => { const k = cx + "_" + cz; let c = chunks.get(k); if (!c) { c = { cx, cz, b: [], r: [], t: [], s: null }; chunks.set(k, c); } return c; };
-const water = [], green = [], names = [], outlines = [], parts = [];
+const water = [], green = [], names = [], outlines = [], parts = [], coastLines = [];
 let nB = 0, nR = 0, nT = 0;
 const files = (await readdir(RAW)).filter((f) => f.endsWith(".json"));
 if (!files.length) { console.error("No raw data found. Run: node scripts/fetch.mjs (or node scripts/make-sample.mjs for a test area)"); process.exit(1); }
@@ -163,6 +166,7 @@ for (const f of files) {
     if (el.type === "way" && el.geometry) rings = [ringFrom(el.geometry)];
     else if (el.type === "relation" && el.members) rings = assembleRings(el.members);
     if (!rings.length) continue;
+    if (t.natural === "coastline" && el.type === "way" && el.geometry) { coastLines.push(el.geometry.map((p) => [p.lat, p.lon])); continue; }
     const isClosed = el.type === "relation" || (el.geometry && el.geometry.length > 3 && el.geometry[0].lat === el.geometry[el.geometry.length - 1].lat && el.geometry[0].lon === el.geometry[el.geometry.length - 1].lon);
 
     const isPart = t["building:part"] && t["building:part"] !== "no";
@@ -242,6 +246,59 @@ for (const f of files) {
   process.stdout.write(".");
 }
 
+/* ---------- the sea (Beirut addition) ---------- */
+// OpenStreetMap coastlines are lines with the land on the left and the sea on the right.
+// Join them into one chain, clip it to a box a little bigger than the map, then close it
+// clockwise around the box, which encloses the sea side.
+function buildSea(lines) {
+  if (!lines.length) return null;
+  const key = (p) => p[0].toFixed(7) + "," + p[1].toFixed(7);
+  const segs = lines.slice(); const chains = [];
+  while (segs.length) {
+    let cur = segs.shift(), grew = true;
+    while (grew) {
+      grew = false;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        if (key(s[0]) === key(cur[cur.length - 1])) { cur = cur.concat(s.slice(1)); segs.splice(i, 1); grew = true; break; }
+        if (key(s[s.length - 1]) === key(cur[0])) { cur = s.concat(cur.slice(1)); segs.splice(i, 1); grew = true; break; }
+      }
+    }
+    chains.push(cur);
+  }
+  const MG = 1500, x0 = minX - MG, z0 = minZ - MG, x1 = maxX + MG, z1 = maxZ + MG, W = x1 - x0, H = z1 - z0, P = 2 * (W + H);
+  const inE = ([x, z]) => x >= x0 && x <= x1 && z >= z0 && z <= z1;
+  const clamp = ([x, z]) => [Math.min(x1, Math.max(x0, x)), Math.min(z1, Math.max(z0, z))];
+  // position along the box edge, clockwise from the north-west corner (x = east, z = south)
+  const param = ([x, z]) => {
+    const d = [z - z0, x1 - x, z1 - z, x - x0]; const e = d.indexOf(Math.min(...d));
+    return e === 0 ? x - x0 : e === 1 ? W + (z - z0) : e === 2 ? W + H + (x1 - x) : 2 * W + H + (z1 - z);
+  };
+  const at = (t) => { t = ((t % P) + P) % P; return t < W ? [x0 + t, z0] : t < W + H ? [x1, z0 + t - W] : t < 2 * W + H ? [x1 - (t - W - H), z1] : [x0, z1 - (t - 2 * W - H)]; };
+  let best = null, bestN = 0;
+  for (const ch of chains) {
+    const pts = ch.map(([lat, lon]) => proj(lat, lon));
+    const i0 = pts.findIndex(inE); if (i0 < 0) continue;
+    let i1 = pts.length - 1; while (!inE(pts[i1])) i1--;
+    const sub = pts.slice(i0, i1 + 1);
+    if (i0 > 0) sub.unshift(clamp(pts[i0 - 1]));
+    if (i1 < pts.length - 1) sub.push(clamp(pts[i1 + 1]));
+    if (sub.length > bestN) { best = sub; bestN = sub.length; }
+  }
+  if (!best) return null;
+  const ts = param(best[0]), te = param(best[best.length - 1]);
+  let dist = ts - te; if (dist <= 0) dist += P;
+  const corners = [0, W, W + H, 2 * W + H].map((c) => { let d = c - te; if (d <= 0) d += P; return [c, d]; })
+    .filter(([, d]) => d < dist).sort((a, b) => a[1] - b[1]).map(([c]) => at(c));
+  const ring = best.concat([at(te)], corners, [at(ts)]);
+  return simplify(ring, 2);
+}
+{
+  const sea = buildSea(coastLines);
+  if (sea) { const flat = []; for (const [x, z] of sea) flat.push(Math.round(x), Math.round(z)); water.push([1, ...bboxOf(sea).map(Math.round), ...flat]); console.log(`\nSea built from ${coastLines.length} coastline pieces (${sea.length} points)`); }
+  else console.warn("\nNo coastline found: the sea will be drawn as land. Check that cache/raw/coast.json downloaded.");
+}
+
 /* ---------- buildings: outlines, 3D parts and landmark fixes ---------- */
 // Grid index so "which building is at this point" is quick.
 const GI = 100, grid = new Map();
@@ -264,19 +321,35 @@ function propsOf(t, id, a, inherit) {
   const tt = inherit ? { ...Object.fromEntries(Object.entries(inherit).filter(([k]) => /material|colour|^building$/.test(k))), ...t } : t;
   const h = heightOf(tt, id, a), cls = materialOf(tt, h, id);
   let roof = roofOf(tt, h, cls); const rh = parseLen(tt["roof:height"]) ?? (parseFloat(tt["roof:levels"]) > 0 ? parseFloat(tt["roof:levels"]) * 2.6 : 0);
-  return { h, base: baseOf(tt), cls, roof, roofH: rh, wall: colourOf(tt["building:colour"] || tt.colour), rcol: colourOf(tt["roof:colour"]) };
+  let rcol = colourOf(tt["roof:colour"]); if (rcol < 0 && roof === 1 && cls !== M.CHURCH) rcol = 0xb5533c; // red tiles
+  return { h, base: baseOf(tt), cls, roof, roofH: rh, wall: colourOf(tt["building:colour"] || tt.colour), rcol };
 }
-// Landmark fixes: find the building at each landmark's point.
-const fixes = new Map();
-for (const L of OVERRIDES) { const [x, z] = proj(...L.at); const o = outlineAt(x, z); if (o) fixes.set(o, L); }
+// Landmark fixes (Beirut): find each listed building by name or by point. Taller entries claim
+// their building first, so a nearby shorter tower can't overwrite a taller one's height.
+const fixes = new Map(), fixLog = [];
+const nameOf = (o) => [o.t.name, o.t["name:en"], o.t["name:fr"]].filter(Boolean);
+for (const L of [...OVERRIDES].sort((a, b) => b.h - a.h)) {
+  let o = null;
+  if (L.match) { const re = new RegExp(L.match, "i"); for (const c of outlines) if (!fixes.has(c) && nameOf(c).some((n) => re.test(n)) && (!o || c.a > o.a)) o = c; }
+  else {
+    const [x, z] = proj(...L.at); if (x < minX || x > maxX || z < minZ || z > maxZ) { fixLog.push(`  – ${L.name}: outside the map`); continue; }
+    o = outlineAt(x, z); if (o && fixes.has(o)) o = null;
+    if (!o) { let bd = 40; for (const c of outlines) { if (fixes.has(c) || c.a < 250) continue; const d = Math.hypot(c.c[0] - x, c.c[1] - z); if (d < bd) { bd = d; o = c; } } }
+  }
+  if (o) { fixes.set(o, L); fixLog.push(`  ✓ ${L.name}: ${L.h} m${o.partArea > o.a * 0.55 ? " (OSM has 3D parts, drawn from those)" : ""}`); }
+  else fixLog.push(`  ✗ ${L.name}: no building found in OpenStreetMap`);
+}
+console.log(`\nPublished heights:\n${fixLog.join("\n")}`);
 let nFix = 0, nAdd = 0;
 for (const o of outlines) {
   const hasParts = o.partArea > o.a * 0.55;
   const L = fixes.get(o);
   if (hasParts) continue; // drawn by its parts below
   const p = propsOf(o.t, o.id, o.a);
-  if (L && !tagged(o.t)) { p.h = L.h; if (L.roof) p.roof = ROOFS[L.roof]; p.roofH = L.roofH || 0; if (L.mat) p.cls = MATS[L.mat]; nFix++; }
-  else if (L && L.roof && !o.t["roof:shape"]) { p.roof = ROOFS[L.roof]; if (L.roofH && !p.roofH) p.roofH = L.roofH; }
+  if (L) { // Beirut: published heights always win over OSM's tags
+    p.h = L.h; p.base = 0; p.roof = L.roof ? ROOFS[L.roof] : 0; p.roofH = L.roofH || 0; p.rcol = colourOf(o.t["roof:colour"]);
+    p.cls = L.mat ? MATS[L.mat] : materialOf(o.t, L.h, o.id); nFix++;
+  }
   emit(o.r, o.holes, p);
   // extra pieces for landmarks OSM only has as a flat outline
   if (L && L.add && !o.partArea) for (const ad of L.add) {
@@ -316,7 +389,7 @@ for (const S of SPECIALS) {
   if (S.type === "wheel") c.s.push([1, q(x - cx * C), q(z - cz * C), S.diameter, S.hub, S.bearing]);
   if (S.type === "column") c.s.push([2, q(x - cx * C), q(z - cz * C), S.h, S.r]);
 }
-console.log(`${outlines.length} building outlines, ${parts.length} 3D parts, ${nFix} landmark heights filled in, ${nAdd} landmark pieces added`);
+console.log(`${outlines.length} building outlines, ${parts.length} 3D parts, ${nFix} published heights applied, ${nAdd} landmark pieces added`);
 console.log(`\n${nB} buildings, ${nR} roads/rails, ${water.length} water and ${green.length} green areas, ${nT} trees`);
 
 /* ---------- write ---------- */
